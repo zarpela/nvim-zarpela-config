@@ -23,8 +23,6 @@ vim.opt.rtp:prepend(lazypath)
 
 local opts = {}
 
-
-
 require("lazy").setup("plugins")  
 local builtin = require("telescope.builtin")
 
@@ -32,16 +30,40 @@ vim.keymap.set('n', '<C-p>', builtin.find_files, {})
 vim.keymap.set('n', '<leader>fg', builtin.live_grep, {})
 vim.keymap.set('n', '<C-n>', ":Neotree filesystem reveal left<CR>", {})
 vim.keymap.set('n', '<F5>', function()
-  vim.cmd('w') -- Save the file
-  local file = vim.fn.expand('%:p') -- Full path to the file
+  if vim.fn.expand("%:e") ~= "py" then
+    vim.notify("⚠️ Not a Python file.")
+    return
+  end
 
-  -- Open a horizontal terminal split and run the Python file after a short delay
-  vim.cmd('belowright split | terminal sleep 0.5 && python3 ' .. file)
+  vim.cmd('w') -- save current file
+  local file = vim.fn.shellescape(vim.fn.expand("%:p"))
 
-  -- Move the cursor to the terminal split and enter insert mode
-  vim.cmd('wincmd j')        -- Move to the new (below) split
-  vim.cmd('startinsert')     -- Enter insert mode for input
+  local terminal_win = nil
+
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    local buf = vim.api.nvim_win_get_buf(win)
+    if vim.bo[buf].buftype == "terminal" then
+      terminal_win = win
+      break
+    end
+  end
+
+  if terminal_win then
+    -- If terminal is already open, just go to it
+    vim.api.nvim_set_current_win(terminal_win)
+  else
+    -- Otherwise, open a new one
+    vim.cmd('belowright split | terminal')
+    vim.cmd('wincmd j')
+  end
+
+  -- Run the command
+  local term_job_id = vim.b.terminal_job_id
+  vim.fn.chansend(term_job_id, "clear && python3 " .. file .. "\n")
+  vim.cmd('startinsert')
 end, {})
+
+
 local config = require("nvim-treesitter.configs")
 require("nvim-treesitter.configs").setup({
     ensure_installed = { "lua", "javascript", "python", "html", "c" },
